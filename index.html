@@ -29,6 +29,23 @@
 
 var camera, renderer;
 
+var HORIZONTAL_UNIT = 10;
+var VERTICAL_UNIT = 10;
+var map = "XXXXXXXXXX \n" +
+				"X        X \n" +
+				"X        X \n" +
+				"X        X \n" +
+				"X        X \n" +
+				"X        X \n" +
+				"X    S   X \n" +
+				"XXXXXXXXXX \n";
+map = map.split("\n");
+var ZSIZE = map.length * HORIZONTAL_UNIT;
+var XSIZE = map[0].length * HORIZONTAL_UNIT;
+var meshMap = new Array(map.length);
+
+var player;
+
 function init() {
 	var stats = initStats();
 	
@@ -41,22 +58,93 @@ function init() {
 	renderer.shadowMapEnabled = true;
 	
 	// ====================================== AXES ======================================
-	var axes = new THREE.AxisHelper(200);
+	
+	var axes = new THREE.AxisHelper(XSIZE + 30);
 	axes.visible = true;
 	scene.add(axes);
 	
-	// ====================================== SPOTLIGHT ======================================
+	// ====================================== LIGTHS ======================================
 	
-	var spotLight = new THREE.SpotLight(0xffffff);
-	spotLight.position.set(0, 60, 0);
-	spotLight.castShadow = true;
-	scene.add(spotLight);
+	var light = new THREE.DirectionalLight(0xfffaf3, 1.5);
+	light.position.set(1, 1, 1);
+	scene.add(light);
+	light = new THREE.DirectionalLight(0xf3faff, 0.75);
+	light.position.set(-1, - 0.5, -1);
+	scene.add(light);
 	
 	// ====================================== CAMERA ======================================
 	
 	camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-	camera.position.set(0, 40, 200);
+	camera.position.set(0, (XSIZE + 100), 90 );
 	camera.lookAt(scene.position);
+	
+	// ====================================== MAP BEGIN ======================================
+	
+	var addVoxel = (function() {
+		var XOFFSET = map.length * 0.5 * HORIZONTAL_UNIT;
+		var ZOFFSET = map[0].length * 0.5 * HORIZONTAL_UNIT;
+		var materials = [];
+		
+		materials.push(new THREE.MeshPhongMaterial({
+			color: new THREE.Color( 0xbb00ff )
+		}));
+		
+		function material() {
+			return materials[Math.floor(Math.random() * materials.length)].clone();
+		}
+		
+		var WALL = new THREE.BoxGeometry(HORIZONTAL_UNIT, VERTICAL_UNIT, HORIZONTAL_UNIT);
+		
+		return function(type, row, col) {
+			var z = (row+1) * HORIZONTAL_UNIT - ZOFFSET,
+					x = (col+1) * HORIZONTAL_UNIT - XOFFSET,
+					mesh;
+			switch(type) {
+				case ' ': 
+					break;
+				case 'X':
+					// wall
+					mesh = new THREE.Mesh(WALL.clone(), material());
+					mesh.scale.y = 3;
+					mesh.position.set(x, VERTICAL_UNIT*1.5, z);
+					break;
+				case 'S':
+					// spawn Pacman
+					var geometryPacman = new THREE.SphereGeometry( 5, 32, 32 );
+					var materialPacman = new THREE.MeshBasicMaterial( {color: 0xfcf400} );
+					player = new THREE.Mesh( geometryPacman, materialPacman );
+					player.scale.y = 3;
+					player.position.set(x, VERTICAL_UNIT*1.5, z);
+					scene.add(player);
+					break
+			}
+			if (typeof mesh !== 'undefined') {
+				scene.add(mesh);
+			}
+			return mesh;
+		};
+	})();
+	
+	for (var iRow = 0, rows = map.length; iRow < rows; iRow++) 
+	{
+		for (var iCol = 0, cols = map[iRow].length; iCol < cols; iCol++) 
+		{
+			if (typeof meshMap[iRow] === 'undefined') 
+			{
+				meshMap[iRow] = new Array(cols);
+			}
+			meshMap[iRow][iCol] = addVoxel(map[iRow].charAt(iCol), iRow, iCol);
+		}
+	}
+	
+	var material = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
+	var floorGeo = new THREE.PlaneBufferGeometry (XSIZE, ZSIZE, 1, 1);
+	floor = new THREE.Mesh(floorGeo, material);
+	floor.rotation.x = Math.PI * -0.5;
+	floor.position.set(HORIZONTAL_UNIT, 0, -HORIZONTAL_UNIT);
+	scene.add(floor);
+	
+	// ====================================== MAP END ======================================
 	
 	document.getElementById("WebGL-output").appendChild(renderer.domElement);
 	
@@ -145,6 +233,35 @@ function handle(delta) {
 	
 	camera.updateProjectionMatrix();
 }
+
+// ====================================== INPUTS ======================================
+
+document.addEventListener('keydown', function(event) {
+	// Allow CTRL+L, CTRL+T, CTRL+W, and F5 for sanity
+	if (!event.ctrlKey || !(event.keyCode == 76 || event.keyCode == 84 || event.keyCode == 87)) {
+		if (event.keyCode != 116) {
+			event.preventDefault();
+		}
+	}
+	switch (event.keyCode) {
+		case 38: // up
+		case 87: // w
+			player.position.set(player.position.x , player.position.y, (player.position.z - 1) );
+			break;
+		case 37: // left
+		case 65: // a
+			player.position.set( (player.position.x - 1), player.position.y, player.position.z);
+			break;
+		case 40: // down
+		case 83: // s
+			player.position.set(player.position.x , player.position.y, (player.position.z + 1) );
+			break;
+		case 39: // right
+		case 68: // d
+			player.position.set( (player.position.x + 1), player.position.y, player.position.z);
+			break;
+	}
+}, false);
 
 </script>
 </body>
